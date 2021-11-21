@@ -4,6 +4,8 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import { config } from './config/config'
 
+const ERROR_WALLET = "Make sure you have metamask or other extension wallet!";
+
 const App = () => {
 
   const [currentAccount, setCurrentAccount] = useState(undefined);
@@ -11,13 +13,11 @@ const App = () => {
 
   const validateCorrectNetwork = async (ethereum) => {
     let chainId = await ethereum.request({ method: 'eth_chainId' });
-    console.log("current chain is: " + config.rinkeby_chain);
-
+    console.log("current chain is: " + chainId);
     if (chainId !== config.rinkeby_chain) {
       alert("You are not connected to the Rinkeby Test Network!");
       return false;
     } else {
-      //setCurrentNetwork(chainId);
       return true;
     }
   }
@@ -48,25 +48,28 @@ const App = () => {
     const { ethereum } = window;
 
     if (!ethereum) {
-      console.log("Make sure you have metamask!");
+      alert(ERROR_WALLET)
       return;
     } else {
       console.log("We have the ethereum object", ethereum);
     }
 
     const accounts = await ethereum.request({ method: 'eth_accounts' });
-
-    const isCorrectChain = await validateCorrectNetwork(ethereum);
+    const currentNetWork = await ethereum.request({ method: 'eth_chainId' });
+    setCurrentNetwork(currentNetWork);
 
     if (accounts.length !== 0) {
       const account = accounts[0];
       console.log("Found an authorized account:", account);
       setCurrentAccount(account)
-    } else {
-     // connectWallet();
-    }
 
-    if (!isCorrectChain) requestSwitchNetwork();
+      const isCorrectChain = await validateCorrectNetwork(ethereum);
+
+      if (!isCorrectChain) {
+        requestSwitchNetwork();
+      }
+
+    }
 
   }
 
@@ -75,20 +78,21 @@ const App = () => {
       const { ethereum } = window;
 
       if (!ethereum) {
-        alert("You need install a wallet like MetaMask!");
+        alert(ERROR_WALLET);
         return;
       }
 
+      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+
+      console.log("Connected", accounts[0]);
+      setCurrentAccount(accounts[0]);
+
       const isCorrectChain = await validateCorrectNetwork(ethereum);
 
-      if (isCorrectChain) {
-        const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-
-        console.log("Connected", accounts[0]);
-        setCurrentAccount(accounts[0]);
-      } else {
+      if (!isCorrectChain) {
         requestSwitchNetwork();
       }
+
     } catch (error) {
       console.log(error)
     }
@@ -99,46 +103,45 @@ const App = () => {
       try {
         const { ethereum } = window;
         await requestSwitchNetwork(ethereum)
-        
+
       } catch (error) {
-        console.log(error)
+        alert(ERROR_WALLET);
       }
 
     }
   }
 
   const handleChangeChain = async (chainId) => {
-      setCurrentNetwork(chainId);
+    setCurrentNetwork(chainId);
   }
 
   useEffect(() => {
     try {
-      const {ethereum} = window;
+      const { ethereum } = window;
       ethereum.on('chainChanged', handleChangeChain);
     } catch (e) {
-      console.log(e)
+      alert(ERROR_WALLET)
     }
 
     return () => {
       try {
-        const {ethereum} = window;
+        const { ethereum } = window;
         ethereum.removeListener('chainChanged', handleChangeChain);
       } catch (e) {
-        console.log(e)
+        alert(ERROR_WALLET)
       }
-    } 
+    }
 
   }, [])
 
   useEffect(() => {
     checkIfWalletIsConnected();
-    
+
     return () => {
     }
   }, [])
 
   useEffect(() => {
-    console.log('changed network')
     verifyChain();
   }, [currentNetwork])
 

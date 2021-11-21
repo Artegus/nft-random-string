@@ -10,6 +10,17 @@ const OPENSEA_LINK = `https://testnets.opensea.io/assets/${config.contractAddres
 const TOTAL_MINT_COUNT = 50;
 
 
+const defaultState = {
+    isMinting: false,
+    isComplete: false,
+}
+
+const defatulMintingResult = {
+    txs: '',
+    opensea: '',
+    tokenId: ''
+}
+
 const Header = ({
     currentAccount,
     connectWallet,
@@ -17,8 +28,10 @@ const Header = ({
 }) => {
 
     const [totalMinted, setTotalMinted] = useState(0)
+    const [statusMinting, setStatusMinting] = useState(defaultState)
+    const [mintingResult, setMintingResult] = useState(defatulMintingResult)
 
-    const requestTotalMinted =  async (connectedContract) => {
+    const requestTotalMinted = async (connectedContract) => {
         let totalMintedRaw = await connectedContract.getTotalMinted();
         let totalMinted = web3.utils.toNumber(totalMintedRaw._hex);
 
@@ -26,6 +39,10 @@ const Header = ({
     }
 
     const askContractToMintNft = async () => {
+
+        setMintingResult(defatulMintingResult);
+        setStatusMinting(defaultState);
+
         try {
             const { ethereum } = window;
 
@@ -35,18 +52,37 @@ const Header = ({
                 const connectedContract = new ethers.Contract(config.contractAddress, RandomString.abi, signer);
 
                 connectedContract.on("RandomStringMinted", (from, tokenId) => {
-                    console.log(from, tokenId.toNumber())
-                    alert(`Hey there! We've minted your NFT. 
+                    if (from.toLowerCase() === currentAccount.toLowerCase()) {
+                        setMintingResult({
+                            ...mintingResult,
+                            tokenId: `${tokenId.toNumber()}`
+                        })
+                        console.log(`Hey there! We've minted your NFT. 
                         It may be blank right now. It can take a max of 10 min to show up on OpenSea. 
                         Here's the link: <${OPENSEA_LINK}${tokenId.toNumber()}>`)
+                    }
                 });
 
                 let nftTxn = await connectedContract.makeARandomString();
+                
+                setStatusMinting({
+                    ...statusMinting, isMinting: true
+                })
 
                 await nftTxn.wait();
-                requestTotalMinted(connectedContract)
-                console.log(`Mined, see transaction: https://rinkeby.etherscan.io/tx/${nftTxn.hash}`);
 
+                setStatusMinting({
+                    isComplete: true,
+                    isMinting: false,
+                })
+
+                await requestTotalMinted(connectedContract)
+                
+                setMintingResult({
+                    ...mintingResult,
+                    txs: `https://rinkeby.etherscan.io/tx/${nftTxn.hash}`,
+                    opensea: `${OPENSEA_LINK}${totalMinted - 1}`
+                })
             } else {
                 console.log("Ethereum object doesn't exist!");
             }
@@ -79,19 +115,21 @@ const Header = ({
     );
 
     const renderMintButton = () => (
-        <button 
-            onClick={currentChain === config.rinkeby_chain ? askContractToMintNft : null} 
+        <button
+            onClick={currentChain === config.rinkeby_chain ? askContractToMintNft : null}
             className="cta-button connect-wallet-button">
             {currentChain === config.rinkeby_chain ? "Mint NFT" : 'Please connect to rinkeby network'}
         </button>
     )
 
     useEffect(() => {
-        getAmountMinted();
+        if (currentAccount !== undefined) {
+            getAmountMinted();
+        }
         return () => {
 
         }
-    }, [])
+    }, [currentAccount])
 
     return (
         <div className="header-container">
@@ -103,15 +141,28 @@ const Header = ({
             </div>
             <p className="header gradient-text">RandomStrings (RDS)</p>
             <p className="sub-text">
-                Each unique. Each beautiful. Just random strings.
-
+                Each unique. Each beautiful. Just "random" strings.
             </p>
             <p style={{ color: 'white' }}>{totalMinted}/{TOTAL_MINT_COUNT}</p>
 
             {currentAccount === undefined ?
-                renderNotConnectedContainer() : 
-                    renderMintButton()
+                renderNotConnectedContainer() :
+                renderMintButton()
             }
+
+            {statusMinting.isMinting && (
+                <p className="mint-status">
+                    Minting...
+                </p>
+            )}
+
+            {statusMinting.isComplete && (
+                <div className="mint-status">
+                    <a href={mintingResult.txs} target='_blank' >Transaction</a>
+                    <a href={mintingResult.opensea} target='_blank' >NFT on testnet Opensea</a>
+                </div>
+            )}
+
         </div>
 
     )
